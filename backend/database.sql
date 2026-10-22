@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS games (
 );
 
 -- Create the attempts table.
-CREATE TABLE IF NOT EXISTS attempt(
+CREATE TABLE IF NOT EXISTS attempts(
 
     -- Unique ID for each attempt.
     id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, 
