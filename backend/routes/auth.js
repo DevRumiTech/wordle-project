@@ -10,10 +10,9 @@ const pool = require("../db");
 // Create a router for authentication routes. 
 const router = express.Router();
 
-// Make the router available to the Express server. 
-module.exports = router;
 
-router.post("/register", async(req, res)=>{
+// Handle user registration. 
+router.post("/register", async (req, res) => {
     // Read the information sent by the user. 
     const {username, email, password} = req.body || {};
 
@@ -29,19 +28,36 @@ router.post("/register", async(req, res)=>{
         });
     }
 
-    // Check that the username is not too long. 
-    if(username.length > 30){
+    // Reject fields containing only spaces.
+    if(
+        username.trim() === "" ||
+        email.trim() === "" ||
+        password.trim() === ""
+    ){
+        return res.status(400).json({
+            error: "Field cannot contain only spaces",
+        });
+    }
+
+    // Remove spaces before and after the username.
+    const cleanUsername = username.trim();
+
+    // Remove surrounding spaces and lowercase the email. 
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Check the length of the cleaned username. 
+    if(cleanUsername.length > 30){
         // Return an error if it exceeds 30 characters.
         return res.status(400).json({
             error: "Username must not exceed 30 characters", 
         });
     }
 
-    // Define a basic pattern for email addresses.
+    // Validate the cleaned email addresses.
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     // Check the email format and maximum length.
-    if(!emailPattern.test(email) || email.length > 255){
+    if(!emailPattern.test(cleanEmail) || cleanEmail.length > 255){
         // Return an error for an invalid email.
         return res.status(400).json({
             error: "Please enter a valid email address",
@@ -65,8 +81,57 @@ router.post("/register", async(req, res)=>{
 
     }
 
-    // Registration is not yet implemented.
-    return res.status(501).json({
-        error: "Registration is not implemented yet",
-    });
+    // Register the new user securly.
+    try {
+        // Check whether the username or email already exists. 
+        const [existingUsers] = await pool.execute(
+            "SELECT id FROM users WHERE username = ? OR email = ? LIMIT 1",
+            [cleanUsername, cleanEmail]
+        );
+
+        // Reject registration if an account already exists.
+        if (existingUsers.length > 0){
+            return res.status(409).json({
+                error: "Username or email already exists",
+            });
+        }
+
+        // Hash the password securely.
+        const passwordHash = await bcrypt.hash(password, 12);
+
+        // Save the new user in MySQL.
+        await pool.execute(
+            `INSERT INTO users
+            (username, email, password_hash, created_at, updated_at)
+            VALUES (?, ?, ?, NOW(), NOW())`, 
+            [cleanUsername, cleanEmail, passwordHash]
+        );
+
+        // Confirm successful registration.
+        return res.status(201).json({
+            message: "Registration successful", 
+        });
+
+
+    }catch (error) {
+        //Display the error code without exposing private information.
+        console.error("Registration error:", error.code);
+
+
+    // Handle duplicate usernames or emails.
+        if (error.code === "ER_DUP_ENTRY"){
+            return res.status(409).json({
+                error: "Username or email already exists",
+            });
+        }
+
+        // Handle other unexpected database errors.
+        return res.status(500).json({
+            error: "Registration failed",
+        });
+    }
+
 });
+
+// Make the router available to the Express server.
+module.exports = router;
