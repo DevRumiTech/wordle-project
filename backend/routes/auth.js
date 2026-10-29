@@ -133,5 +133,12 @@ router.post("/register", async (req, res) => {
 
 });
 
+// Login endpoint (authentication will be added next)
+router.post("/login", (req, res) => {
+    res.status(501).json({
+        error: "Login not implemented yet"
+    }); 
+});
+
 // Make the router available to the Express server.
 module.exports = router;
