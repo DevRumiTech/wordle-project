@@ -133,12 +133,104 @@ router.post("/register", async (req, res) => {
 
 });
 
-// Login endpoint (authentication will be added next)
-router.post("/login", (req, res) => {
-    res.status(501).json({
-        error: "Login not implemented yet"
-    }); 
+// Login endpoint
+router.post("/login", async (req, res) => {
+    //Read the username/email and password
+    const {identifier, password} = req.body || {};
+
+    // Check required fields and their types
+    if(
+        typeof identifier !== "string" ||
+        !identifier.trim() ||
+        typeof password !== "string" ||
+        !password
+    ){
+        return res.status(400).json({
+            error: "Username/email and password required"
+        });
+    }
+
+    // Remove spaces around the username or email
+    const loginIdentifier = identifier.trim();
+
+    // Search for the user in MySQL
+    try{
+        const [rows] = await pool.execute(
+            "SELECT id, username, email, password_hash FROM users WHERE username = ? OR email = ? LIMIT 1", [loginIdentifier, loginIdentifier]
+        ); 
+
+
+        // Check whether the user exists
+        if (rows.length ===0){
+            return res.status(401).json({
+                error: "Invalid username/email or password"
+            });
+        }
+
+
+        // Get the user found in MySQL
+        const user = rows[0];
+
+        // Compare the password with the stored hash
+        const passwordMatches = await bcrypt.compare(
+            password, 
+            user.password_hash
+        );
+
+        // Reject an incorrect password
+        if(!passwordMatches){
+            return res.status(401).json({
+                error: "Invalid username/email or password"
+            });
+        }
+
+       // Create a fresh session after successful login
+       return req.session.regenerate((error)=>{
+        if (error) {
+            return res.status(500).json({
+                error: "Session error"
+            });
+        }
+
+        // Store the authenticated user's ID
+        req.session.userId = user.id;
+
+        return res.status(200).json({
+            message: "Login successful"
+        });
+       });
+
+    }catch (error) {
+        //Display the error in the development terminal
+        console.error("Login error:", error.message);
+
+        return res.status(500).json({
+            error: "Server error"
+        });
+    }
 });
+
+// Make the router available to the Express server
+module.exports = router;
+
+
+
+// Get the currently authenticated user
+router.get("/me", (req, res)=> {
+
+    // Reject requests without a login session
+    if(!req.session?.userId){
+        return res.status(401).json({
+            error:"Not authenticated"
+        });
+    }
+
+    // Return the authenticated user's ID
+    return res.status(200).json({
+        userId: req.session.userId
+    });
+});
+
 
 // Make the router available to the Express server.
 module.exports = router;
