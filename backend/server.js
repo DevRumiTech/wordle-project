@@ -1,8 +1,31 @@
+// Load environment variables
+require("dotenv").config();
+
 // Import Express, the framework used to create our server.
 const express = require("express");
 
+// Manage user login sessions
+const session = require("express-session");
+
+// Store user sessions in MySQL
+const MySQLStore = require("express-mysql-session")(session);
+
 // Import the MySQL connection pool from db.js.
 const pool = require("./db");
+
+// Create the MySQL session store
+const sessionStore = new MySQLStore({
+    createDatabaseTable: false
+}, pool);
+
+// Check whether MySQL session storage is ready
+sessionStore.onReady()
+    .then(()=>{
+        console.log("MySQL session store ready");
+    })
+    .catch((error)=> {
+        console.error("Session store error:", error.message);
+    });
 
 // Import authentication routes.
 const authRoutes = require("./routes/auth");
@@ -12,6 +35,22 @@ const app = express();
 
 // Allow Express to read incoming JSON data.
 app.use(express.json())
+
+// Enable server-side login sessions
+app.use(session({
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET,
+    resave: false, 
+    saveUninitialized: false,
+
+    // Configure session cookie security
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", 
+        sameSite: "lax",
+        maxAge: 60 * 60 * 1000
+    }
+}));
 
 // Direct authentication requests to the auth router.
 app.use("/api/auth", authRoutes);
