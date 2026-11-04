@@ -15,3 +15,35 @@
 .auth-card .auth-notice { color: #1f5a35; background: #edf8ef; padding: 12px; border-radius: 6px; }
 .auth-card .auth-help { margin-top: 8px; font-size: 14px; }
 @media (max-width: 400px) { .auth-page { padding-inline: 14px; } .auth-card { padding: 20px; } }
+
+/* Use a wider layout after the player signs in. */
+.auth-page.playing {
+  max-width: 760px;
+}
+
+.game-page {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.game-page > button {
+  min-height: 44px;
+  padding: 0.65rem 1rem;
+  border: 1px solid #657180;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.game-page > button:focus-visible {
+  outline: 3px solid #509aef;
+  outline-offset: 3px;
+}
+
+@media (max-width: 480px) {
+  .game-page {
+    padding: 0.5rem;
+  }
+}

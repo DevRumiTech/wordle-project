@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { authApi } from './api/auth'
+import WordleGame from './game/WordleGame'
 import './App.css'
 
 function AuthForm({ onLogin }) {
@@ -112,14 +113,14 @@ function App() {
     } finally { setPending(false) }
   }
 
-  return <main className="auth-page">
+  return <main className={user ? "auth-page playing" : "auth-page"}>
     <header><h1>Wordle Game</h1><p>Welcome to my Wordle project!</p></header>
     {state === 'loading' ? <p role="status">Checking your session…</p> : state === 'error' ?
       <section className="auth-card"><p role="alert" className="auth-error">{error}</p>
         <button onClick={refresh}>Try again</button></section> : user ?
-      <section className="auth-card" aria-labelledby="account-title">
+      <section className="game-page" aria-labelledby="account-title">
         <h2 id="account-title">You’re signed in</h2>
-        <p>Your account is connected. The game is coming next.</p>
+        <WordleGame />
         {error && <p role="alert" className="auth-error">{error}</p>}
         <button onClick={logout} disabled={pending}>{pending ? 'Signing out…' : 'Sign out'}</button>
       </section> : <AuthForm onLogin={refresh} />}

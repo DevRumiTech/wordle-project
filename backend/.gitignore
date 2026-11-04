@@ -7,3 +7,6 @@ node_modules-before-fix/
 
 # Ignore local environment overrides
 .env.local
+
+# Local database change snapshots
+backups/
