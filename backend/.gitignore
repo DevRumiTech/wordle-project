@@ -3,3 +3,7 @@ node_modules/
 
 # Ignore files containing passwords and other secrets. 
 .env
+node_modules-before-fix/
+
+# Ignore local environment overrides
+.env.local

@@ -5,9 +5,10 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 
 // import the MySQL connection pool.
-const pool = require("../db");
+const { cookieOptions, SESSION_NAME } = require("../session-config");
 
 // Create a router for authentication routes. 
+module.exports = function createAuthRouter(pool) {
 const router = express.Router();
 
 
@@ -115,7 +116,7 @@ router.post("/register", async (req, res) => {
 
     }catch (error) {
         //Display the error code without exposing private information.
-        console.error("Registration error:", error.code);
+        console.error("Registration failed");
 
 
     // Handle duplicate usernames or emails.
@@ -148,6 +149,10 @@ router.post("/login", async (req, res) => {
         return res.status(400).json({
             error: "Username/email and password required"
         });
+    }
+
+    if (identifier.trim().length > 255 || Buffer.byteLength(password, "utf8") > 72) {
+        return res.status(400).json({ error: "Invalid credential size" });
     }
 
     // Remove spaces around the username or email
@@ -194,15 +199,20 @@ router.post("/login", async (req, res) => {
 
         // Store the authenticated user's ID
         req.session.userId = user.id;
-
-        return res.status(200).json({
-            message: "Login successful"
+        req.session.authenticatedAt = Date.now();
+        // Confirm persistence before reporting a successful login.
+        return req.session.save((saveError) => {
+            if (saveError) {
+                req.session.destroy(() => {});
+                return res.status(500).json({ error: "Session error" });
+            }
+            return res.status(200).json({ message: "Login successful" });
         });
        });
 
     }catch (error) {
         //Display the error in the development terminal
-        console.error("Login error:", error.message);
+        console.error("Login failed");
 
         return res.status(500).json({
             error: "Server error"
@@ -210,8 +220,7 @@ router.post("/login", async (req, res) => {
     }
 });
 
-// Make the router available to the Express server
-module.exports = router;
+
 
 
 
@@ -232,5 +241,14 @@ router.get("/me", (req, res)=> {
 });
 
 
-// Make the router available to the Express server.
-module.exports = router;
+// Only report success after the server-side session has been destroyed.
+router.post("/logout", (req, res) => {
+    req.session.destroy((error) => {
+        if (error) return res.status(500).json({ error: "Logout failed" });
+        res.clearCookie(SESSION_NAME, cookieOptions(req.app.get("production")));
+        return res.status(200).json({ message: "Logout successful" });
+    });
+});
+
+return router;
+};

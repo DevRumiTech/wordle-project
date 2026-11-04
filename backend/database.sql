@@ -19,6 +19,9 @@ email VARCHAR(255) NOT NULL UNIQUE,
 -- Store the hashed password, never the original password.
 password_hash VARCHAR(255) NOT NULL,
 
+-- Record account creation (already present in the local database).
+created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
 -- Record when the account was last updated.
 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 ON UPDATE CURRENT_TIMESTAMP
@@ -124,12 +127,11 @@ CREATE TABLE IF NOT EXISTS attempts(
     UNIQUE (game_id, attempt_number)
 );
 
-
-
-
-
-
-
-
-
-
+-- Persistent authentication sessions, separate from game records.
+-- Matches express-mysql-session; existing tables are left untouched.
+CREATE TABLE IF NOT EXISTS sessions (
+    session_id VARCHAR(128) COLLATE utf8mb4_bin NOT NULL,
+    expires INT UNSIGNED NOT NULL,
+    data MEDIUMTEXT COLLATE utf8mb4_bin,
+    PRIMARY KEY (session_id)
+) ENGINE=InnoDB;
