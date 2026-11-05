@@ -120,6 +120,22 @@ function App() {
         <button onClick={refresh}>Try again</button></section> : user ?
       <section className="game-page" aria-labelledby="account-title">
         <h2 id="account-title">You’re signed in</h2>
+        {/* Display information belonging to the current user. */}
+        <details className="account-profile">
+          <summary>My profile</summary>
+          <dl>
+            <dt>Username</dt>
+            <dd>{user.username ?? 'Unavailable'}</dd>
+            <dt>Email</dt>
+            <dd>{user.email ?? 'Unavailable'}</dd>
+            {user.createdAt && (
+              <>
+                <dt>Account created</dt>
+                <dd>{new Date(user.createdAt).toLocaleDateString()}</dd>
+              </>
+            )}
+          </dl>
+        </details>
         <WordleGame />
         {error && <p role="alert" className="auth-error">{error}</p>}
         <button onClick={logout} disabled={pending}>{pending ? 'Signing out…' : 'Sign out'}</button>

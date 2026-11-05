@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 import { gameApi } from '../api/games'
+import { readActiveGameId, saveActiveGameId, clearActiveGameId } from './activeGame'
+import GameHistory from './GameHistory'
 import {
   MAX_GUESSES,
   addLetter,
@@ -162,10 +164,12 @@ export default function WordleGame() {
   const [game, setGame] = useState(null)
   const [guesses, setGuesses] = useState([])
   const [draft, setDraft] = useState('')
-  const [pending, setPending] = useState(false)
+  const [pending, setPending] = useState(() => Boolean(readActiveGameId()))
   const [error, setError] = useState('')
-  const [message, setMessage] = useState(
-    'Choose a language and start a game.'
+  const [message, setMessage] = useState(() =>
+    readActiveGameId()
+      ? 'Restoring unfinished game...'
+      : 'Choose a language and start a game.'
   )
 
   // Prevent duplicate submissions before React updates the screen.
@@ -173,6 +177,76 @@ export default function WordleGame() {
   const active = game?.status === 'in_progress'
   const keyStatuses = keyboardStatuses(guesses)
 
+  useEffect(() => {
+    const savedId = readActiveGameId()
+    if (!savedId) return undefined
+
+    let current = true
+    busy.current = true
+
+    gameApi.getGame(savedId).then(saved => {
+      if (!current) return
+
+      // Reject invalid responses before restoring the board.
+      if (!saved ||
+          !['en', 'fr'].includes(saved.language) ||
+          !['in_progress', 'won', 'lost'].includes(saved.status) ||
+          !Array.isArray(saved.attempts) ||
+          saved.attempts.length > MAX_GUESSES ||
+          saved.attempts.some(attempt =>
+            typeof attempt.word !== 'string' ||
+            attempt.word.length !== 5 ||
+            !Array.isArray(attempt.feedback) ||
+            attempt.feedback.length !== 5
+          )) {
+        throw new Error('Invalid saved-game response.')
+      }
+
+      setGame(saved)
+      setLanguage(saved.language)
+      setGuesses(saved.attempts.map(({ word, feedback }) => ({
+        word,
+        feedback,
+      })))
+      setDraft('')
+
+      if (saved.status === 'in_progress') {
+        setMessage(
+          `Game restored. ${saved.attemptsRemaining} attempts remaining.`
+        )
+      } else {
+        // Finished games no longer need an active storage entry.
+        clearActiveGameId()
+        setMessage(saved.status === 'won'
+          ? `You won! Score: ${saved.score}`
+          : `Game over. The word was ${saved.solution}.`)
+      }
+    }).catch(failure => {
+      if (!current) return
+
+      if (failure.status === 403 || failure.status === 404) {
+        clearActiveGameId()
+        setMessage('Saved game unavailable. Start a new game.')
+      } else if (failure.status === 401) {
+        setMessage('Session expired. Please sign in again.')
+      } else {
+        setMessage('Unable to restore. Reload the page to retry.')
+      }
+
+      setError(failure.message)
+    }).finally(() => {
+      if (current) {
+        busy.current = false
+        setPending(false)
+      }
+    })
+
+    // Ignore old network responses after React unmounts.
+    return () => {
+      current = false
+      busy.current = false
+    }
+  }, [])
   async function startGame() {
     if (busy.current || active) return
 
@@ -188,6 +262,8 @@ export default function WordleGame() {
         throw new Error('Invalid new-game response.')
       }
 
+      // Remember the active game across browser restarts.
+      saveActiveGameId(created.gameId)
       setGame(created)
       setGuesses([])
       setDraft('')
@@ -231,6 +307,9 @@ export default function WordleGame() {
       }))
 
       setDraft('')
+
+      // Only unfinished games need restoration.
+      if (result.status !== 'in_progress') clearActiveGameId()
 
       if (result.status === 'won') {
         setMessage(`You won! Score: ${result.score}`)
@@ -395,6 +474,11 @@ export default function WordleGame() {
       {game?.status === 'lost' && (
         <p role="status">You can start another game.</p>
       )}
+      {/* Personal results are retrieved from the backend. */}
+      <GameHistory
+        refreshKey={game?.status === 'won' || game?.status === 'lost'
+          ? String(game.gameId) : 'initial'}
+      />
     </Panel>
   )
 }

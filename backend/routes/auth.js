@@ -225,19 +225,33 @@ router.post("/login", async (req, res) => {
 
 
 // Get the currently authenticated user
-router.get("/me", (req, res)=> {
-
-    // Reject requests without a login session
-    if(!req.session?.userId){
-        return res.status(401).json({
-            error:"Not authenticated"
-        });
+router.get("/me", async (req, res, next) => {
+    // Only an authenticated user may retrieve account details.
+    if (!req.session?.userId) {
+        return res.status(401).json({ error: "Not authenticated" });
     }
 
-    // Return the authenticated user's ID
-    return res.status(200).json({
-        userId: req.session.userId
-    });
+    try {
+        // Query the account belonging to the current session.
+        const [accounts] = await pool.execute(
+            "SELECT username, email, created_at FROM users WHERE id = ? LIMIT 1",
+            [req.session.userId]
+        );
+
+        if (accounts.length === 0) {
+            return res.status(401).json({ error: "Account unavailable" });
+        }
+
+        // Never return the password or its hash.
+        return res.status(200).json({
+            userId: req.session.userId,
+            username: accounts[0].username,
+            email: accounts[0].email,
+            createdAt: accounts[0].created_at
+        });
+    } catch (error) {
+        return next(error);
+    }
 });
 
 

@@ -16,6 +16,14 @@ async function fixture(t, options = {}) {
         queries.push({ sql, params });
         if (options.dbFailure) throw new Error('synthetic private database details');
         if (sql.startsWith('SELECT id FROM')) return [options.duplicate ? [{ id: 1 }] : []];
+        // Return account details for the authenticated profile endpoint.
+        if (sql.includes('SELECT username, email, created_at FROM users')) {
+            return [options.profileMissing ? [] : [{
+                username: 'player',
+                email: 'player@example.test',
+                created_at: '2026-10-19T09:00:00.000Z'
+            }]];
+        }
         if (sql.includes('INSERT')) {
             if (options.duplicateRace) throw Object.assign(new Error(), { code: 'ER_DUP_ENTRY' });
             return [{ insertId: 2 }];
@@ -99,7 +107,7 @@ test('167: login rotates sessions and only succeeds after persistence', async t 
     assert.equal((await f.login()).status, 200);
     assert.ok(f.cookie !== oldCookie);
     assert.equal((await f.request('/me', { useCookie: oldCookie })).status, 401);
-    assert.deepEqual((await f.request('/me')).data, { userId: 1 });
+    assert.deepEqual((await f.request('/me')).data, { userId: 1, username: 'player', email: 'player@example.test', createdAt: '2026-10-19T09:00:00.000Z' });
     await f.csrf();
     f.store.set = (id, value, callback) => callback(new Error('private storage details'));
     const result = await f.request('/login', { method: 'POST', body: { identifier: 'player', password: f.password } });
@@ -228,4 +236,40 @@ test('169: expired and tampered cookies cannot authenticate', async t => {
 test('165: production refuses to send session cookies over plain HTTP', async t => {
     const f = await fixture(t, { production: true });
     assert.equal((await f.csrf()).setCookie, null);
+});
+
+test('359: profile returns only the signed-in account details', async t => {
+    const f = await fixture(t);
+
+    // Anonymous visitors cannot retrieve account details.
+    assert.equal((await f.request('/me')).status, 401);
+
+    await f.login();
+    const result = await f.request('/me');
+
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.data, {
+        userId: 1,
+        username: 'player',
+        email: 'player@example.test',
+        createdAt: '2026-10-19T09:00:00.000Z'
+    });
+
+    // Password hashes must never appear in the response.
+    assert.equal('password_hash' in result.data, false);
+
+    const query = f.queries.find(item =>
+        item.sql.includes('SELECT username, email, created_at FROM users')
+    );
+    assert.deepEqual(query.params, [1]);
+});
+
+test('360: missing user accounts cannot expose a profile', async t => {
+    const f = await fixture(t, { profileMissing: true });
+
+    assert.equal((await f.login()).status, 200);
+
+    const result = await f.request('/me');
+    assert.equal(result.status, 401);
+    assert.deepEqual(result.data, { error: 'Account unavailable' });
 });
