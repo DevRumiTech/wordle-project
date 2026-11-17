@@ -300,8 +300,8 @@ function createGameRouter(pool){
                  WHERE user_id = ?
                    AND status IN ('won', 'lost')
                  ORDER BY finished_at DESC, id DESC
-                 LIMIT ? OFFSET ?`,
-                [req.session.userId, limit, offset]
+                 LIMIT ${limit} OFFSET ${offset}`,
+                [req.session.userId]
             );
 
             return res.json({ games, limit, offset });
