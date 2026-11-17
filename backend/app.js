@@ -13,6 +13,9 @@ function createApp({ pool, store, secret, production = false, loginLimit = 10 })
     const app = express();
     app.set("production", production);
     app.disable("x-powered-by");
+    if (process.env.VERCEL === "1") {
+        app.set("trust proxy", 1);
+    }
     app.use("/api", (req, res, next) => {
         res.set("Cache-Control", "no-store");
         next();

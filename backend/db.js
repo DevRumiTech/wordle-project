@@ -20,6 +20,9 @@ const pool = mysql.createPool({
 
     // Database used by Wordle.
     database: process.env.DB_NAME,
+    ...(process.env.DB_SSL === "true"
+        ? { ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true } }
+        : {}),
 
     // Wait when all connections are busy.
     waitForConnections: true,
