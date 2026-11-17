@@ -49,7 +49,8 @@ test("276: history contains completed games only", async () => {
         execute: async (sql, params) => {
             assert.match(sql, /user_id = \?/);
             assert.match(sql, /status IN/);
-            assert.deepEqual(params, [7, 20, 0]);
+            assert.deepEqual(params, [7]);
+            assert.match(sql, /LIMIT 20 OFFSET 0/);
 
             return [[{
                 id: 11,
